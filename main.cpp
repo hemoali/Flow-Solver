@@ -1,5 +1,7 @@
 #include <iostream>
 #include <ctime>
+#include <fstream>
+#include <string>
 #include "FlowSolver.h"
 using namespace std;
 
@@ -19,10 +21,12 @@ int main() {
     boostIO();
     
     try {
-        FlowSolver solver("/Users/ibrahimradwan/Desktop/mazes/maze8x8.png");
-        solver.printMaze();
+        FlowSolver solver("/Users/ibrahimradwan/Development/puzzlesolver/puzzlesolver/game.png");
         solver.solve();
-        solver.printSolution();
+        string solution = solver.getSolutionPaths();
+        ofstream fout("Path.txt");
+        fout << solution;
+        fout.close();
     }
     catch (const exception& ex) {
         cout << "ERROR::" << ex.what() << endl;

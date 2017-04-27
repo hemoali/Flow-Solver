@@ -104,6 +104,7 @@ void FlowSolver::detectGameStructure() {
 void FlowSolver::initGameData() {
     int currentColorID = 0;	// counter used for setting matrix cells colors numbers
     map<colorRGB, int> colorsIDs;
+    vector<pair<point, point>> unorderedColorPairs;
     
     for (int i = 0; i < gridRowsCount; ++i) { // i for y
         for (int j = 0; j < gridColsCount; ++j) { // j for x
@@ -121,17 +122,62 @@ void FlowSolver::initGameData() {
                 
                 if (colorsIDs[cellIntesity] > 0) {
                     grid[i][j] = colorsIDs[cellIntesity];
-                    colorPairs[grid[i][j] - 1].second = point(i, j);
+                    unorderedColorPairs[grid[i][j] - 1].second = point(i, j);
+                    //colorPairs[grid[i][j] - 1].second = point(i, j);
                 }
                 else {
                     grid[i][j] = colorsIDs[cellIntesity] = ++currentColorID;
-                    colorPairs.push_back({ point(i, j), point() });
+                    unorderedColorPairs.push_back({ point(i, j), point() });
+                    //colorPairs.push_back({ point(i, j), point() });
                 }
             }
         }
     }
+    
+    orderColorPairs(unorderedColorPairs);
 }
-
+/**
+ *  Generate color pairs taking into consedration minimizing the required movements to switch from color path to another
+ */
+void FlowSolver::orderColorPairs(vector<pair<point, point>>& unorderedColorPairs){
+    //  Init. currentRow, currentCol
+    int currentRow = 0, currentCol = 0;
+    //  Get nearest to currentRow, currentCol while checking both ends of the path and while ignoring the push pairs
+    while(unorderedColorPairs.size() > colorPairs.size()){
+        int minDifference = 1e9;
+        int minDifferenceIdx = -1;
+        bool isFirstEnd = false;
+        for (int i = 0; i<unorderedColorPairs.size(); i++) {
+            if(unorderedColorPairs[i].first.r == -1) continue; // Already pushed
+            // Check first pair end
+            int rowsDiff = abs(unorderedColorPairs[i].first.r - currentRow);
+            int colsDiff = abs(unorderedColorPairs[i].first.c - currentCol);
+            if(minDifference > rowsDiff+colsDiff){
+                minDifference = rowsDiff+colsDiff;
+                minDifferenceIdx = i;
+                isFirstEnd=true;
+            }
+            // Check second pair end
+            rowsDiff = abs(unorderedColorPairs[i].second.r - currentRow);
+            colsDiff = abs(unorderedColorPairs[i].second.c - currentCol);
+            if(minDifference > rowsDiff+colsDiff){
+                minDifference = rowsDiff+colsDiff;
+                minDifferenceIdx = i;
+                isFirstEnd = false;
+            }
+        }
+        //  Push into color pairs
+        colorPairs.push_back(unorderedColorPairs[minDifferenceIdx]);
+        if(!isFirstEnd){
+            swap(colorPairs.back().first, colorPairs.back().second);
+        }
+        //  Mark current pair (in the unorderedList) as pushed into the orderedPairsList
+        unorderedColorPairs[minDifferenceIdx].first.r = -1;
+        //  Move currentRow, currentCol to path's other end
+        currentRow = colorPairs.back().second.r;
+        currentCol = colorPairs.back().second.c;
+    }
+}
 void FlowSolver::printMaze() {
     for (int i = 0; i < gridRowsCount; ++i) {
         for (int j = 0; j < gridColsCount; ++j) {
@@ -146,34 +192,53 @@ void FlowSolver::printMaze() {
     cout << endl << endl;
 }
 
-void FlowSolver::printSolution() {
-    printMaze();
-    cout << gridRowsCount << "x" << gridColsCount << endl;
-    cout << "Block Width: " << singleBlockWidth << ", Block Height: " << singleBlockHeight << endl;
-    cout << "Recursive calls count: " << recursiveCalls << endl;
-    
-    for (int i = 0; i < colorPathes.size(); ++i) {
-        cout << "Color " << i + 1 << ": " << endl;
-        cout << "From (" << colorPairs[i].first.r << ", " << colorPairs[i].first.c << "): ";
+string FlowSolver::getSolutionPaths() {
+    //printMaze();
+    // cout << gridRowsCount << "x" << gridColsCount << endl;
+    // cout << "Block Width: " << singleBlockWidth << ", Block Height: " << singleBlockHeight << endl;
+    // cout << "Recursive calls count: " << recursiveCalls << endl;
+    // Assume: pen starts @ ( 0 , 0 )
+    int currentRow = 0, currentCol = 0;
+    string result = "";
+    for (int i = 0; i < colorPathes.size(); i++) {
+        
+        // ToDo: Navigate to path start point
+        int targetRow = colorPairs[i].first.r, targetCol = colorPairs[i].first.c;
+        int requiredRowsSteps = targetRow - currentRow, requiredColsSteps = targetCol - currentCol;
+        for (int k=0; k < abs(requiredRowsSteps); k++) {
+            cout << ((requiredRowsSteps<0) ? "^" : "v" );
+        }
+        for (int k=0; k < abs(requiredColsSteps); k++) {
+            cout << ((requiredColsSteps<0) ? "<" : ">" );
+        }
+        
+        result+="P";// << colorPathes[i].size() << "-";
+        
         for (int j = 0; j < colorPathes[i].size(); ++j) {
             switch (colorPathes[i][j])
             {
                 case DOWN:
-                    cout << "v ";
+                    result+= "v";
                     break;
                 case UP:
-                    cout << "^ ";
+                    result+= "^";
                     break;
                 case RIGTH:
-                    cout << "> ";
+                    result+= ">";
                     break;
                 case LEFT:
-                    cout << "< ";
+                    result+= "<";
                     break;
             }
         }
-        cout << endl;
+        result+= "R";
+        
+        // Set current pen point on the grid (preparing for the next path)
+        currentRow = colorPairs[i].second.r;
+        currentCol = colorPairs[i].second.c;
+        
     }
+    return result;
 }
 
 void FlowSolver::solve() {
@@ -215,16 +280,16 @@ void FlowSolver::solve() {
     }
 }
 
-bool FlowSolver::_solve(int row, int col, int prvRow, int prvCol, int colorIdx) {
+bool FlowSolver::_solve(int row, int col, int prvRow, int prvCol, int pairIdx) {
     ++recursiveCalls;
     
     // Connected two pins of the same colors together
-    if (row == colorPairs[colorIdx].second.r && col == colorPairs[colorIdx].second.c) {
-        if (++colorIdx < colorPairs.size()) {
+    if (row == colorPairs[pairIdx].second.r && col == colorPairs[pairIdx].second.c) {
+        if (++pairIdx < colorPairs.size()) {
             // Try to connect the next color pair
-            int toX = colorPairs[colorIdx].first.r;
-            int toY = colorPairs[colorIdx].first.c;
-            return _solve(toX, toY, -1, -1, colorIdx);
+            int toX = colorPairs[pairIdx].first.r;
+            int toY = colorPairs[pairIdx].first.c;
+            return _solve(toX, toY, -1, -1, pairIdx);
         }
         else {
             // Finished connecting every pair of colors
@@ -233,7 +298,7 @@ bool FlowSolver::_solve(int row, int col, int prvRow, int prvCol, int colorIdx) 
     }
     
     // Cell is already occupied so just return false
-    if (row != colorPairs[colorIdx].first.r || col != colorPairs[colorIdx].first.c) {
+    if (row != colorPairs[pairIdx].first.r || col != colorPairs[pairIdx].first.c) {
         if (grid[row][col] != 0) {
             return false;
         }
@@ -241,10 +306,10 @@ bool FlowSolver::_solve(int row, int col, int prvRow, int prvCol, int colorIdx) 
     
     // Try to fill the current cell with the current color
     int temp = grid[row][col];
-    grid[row][col] = colorIdx + 1;
+    grid[row][col] = grid[colorPairs[pairIdx].first.r][colorPairs[pairIdx].first.c];
     
     // If the current state is unsolvable then undo the filling and no need for further branching
-    if (!solvable(row, col, colorIdx)) {
+    if (!solvable(row, col, pairIdx)) {
         grid[row][col] = temp;
         return false;
     }
@@ -254,7 +319,7 @@ bool FlowSolver::_solve(int row, int col, int prvRow, int prvCol, int colorIdx) 
         int toR = row + dx[i];
         int toC = col + dy[i];
         
-        if ((toR != prvRow || toC != prvCol) && valid(toR, toC) && _solve(toR, toC, row, col, colorIdx)) {
+        if ((toR != prvRow || toC != prvCol) && valid(toR, toC) && _solve(toR, toC, row, col, pairIdx)) {
             return true;
         }
     }

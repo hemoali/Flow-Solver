@@ -113,7 +113,11 @@ private:
 	 * This function fills the matrix corresponding to the image and the color pairs
 	 */
 	void initGameData();
-
+    
+    /**
+     * This function fills the matrix corresponding to the image and the color pairs
+     */
+    void orderColorPairs(vector<pair<point, point>>& unorderedColorPairs);
 public:
 	/**
 	 * Prints the maze and a separation line after it
@@ -123,7 +127,7 @@ public:
 	/** 
 	 * Prints the solution of the given maze
 	 */
-	void printSolution();
+	string getSolutionPaths();
 
 	/**
 	 * Solves the game and fills in the path of each given color in the grid
@@ -135,7 +139,7 @@ private:
 	 * Tries to solve the maze by checking all the available pathes and fills in the correct colors in the grid
 	 * using depth first search (DFS) and backtracking
 	 */
-	bool _solve(int row, int col, int prvRow, int prvCol, int colorIdx);
+	bool _solve(int row, int col, int prvRow, int prvCol, int pairIdx);
 
 	/**
 	 * Returns whether or not the given cell is inside the grid
