@@ -15,7 +15,7 @@ FlowSolver::FlowSolver(const string& url) {
 }
 
 FlowSolver::~FlowSolver() {
-    
+    image.deallocate();
 }
 
 bool FlowSolver::loadImage(const string& url) {
@@ -114,11 +114,7 @@ void FlowSolver::initGameData() {
                                               );
             
             if (((int)intensity.val[0] + (int)intensity.val[1] + (int)intensity.val[2]) > MAX_BACKGROUND_RGB) {
-                colorRGB cellIntesity(
-                                      (int)intensity.val[2],
-                                      (int)intensity.val[1],
-                                      (int)intensity.val[0]
-                                      ); // BGR -> RGB
+                colorRGB cellIntesity((int)intensity.val[2], (int)intensity.val[1], (int)intensity.val[0]); // BGR -> RGB
                 
                 if (colorsIDs[cellIntesity] > 0) {
                     grid[i][j] = colorsIDs[cellIntesity];
@@ -136,48 +132,57 @@ void FlowSolver::initGameData() {
     
     orderColorPairs(unorderedColorPairs);
 }
-/**
- *  Generate color pairs taking into consedration minimizing the required movements to switch from color path to another
- */
+
 void FlowSolver::orderColorPairs(vector<pair<point, point>>& unorderedColorPairs){
     //  Init. currentRow, currentCol
-    int currentRow = 0, currentCol = 0;
+    int currentRow = 0;
+    int currentCol = 0;
+    
     //  Get nearest to currentRow, currentCol while checking both ends of the path and while ignoring the push pairs
-    while(unorderedColorPairs.size() > colorPairs.size()){
+    while (colorPairs.size() < unorderedColorPairs.size()) {
         int minDifference = 1e9;
         int minDifferenceIdx = -1;
         bool isFirstEnd = false;
-        for (int i = 0; i<unorderedColorPairs.size(); i++) {
-            if(unorderedColorPairs[i].first.r == -1) continue; // Already pushed
+        
+        for (int i = 0; i < unorderedColorPairs.size(); ++i) {
+            if (unorderedColorPairs[i].first.r == -1) {
+                continue; // Already pushed
+            }
+            
             // Check first pair end
             int rowsDiff = abs(unorderedColorPairs[i].first.r - currentRow);
             int colsDiff = abs(unorderedColorPairs[i].first.c - currentCol);
-            if(minDifference > rowsDiff+colsDiff){
+            if (minDifference > rowsDiff+colsDiff) {
                 minDifference = rowsDiff+colsDiff;
                 minDifferenceIdx = i;
-                isFirstEnd=true;
+                isFirstEnd = true;
             }
+            
             // Check second pair end
             rowsDiff = abs(unorderedColorPairs[i].second.r - currentRow);
             colsDiff = abs(unorderedColorPairs[i].second.c - currentCol);
-            if(minDifference > rowsDiff+colsDiff){
+            if (minDifference > rowsDiff+colsDiff) {
                 minDifference = rowsDiff+colsDiff;
                 minDifferenceIdx = i;
                 isFirstEnd = false;
             }
         }
-        //  Push into color pairs
+        
+        // Push into color pairs
         colorPairs.push_back(unorderedColorPairs[minDifferenceIdx]);
-        if(!isFirstEnd){
+        if (!isFirstEnd) {
             swap(colorPairs.back().first, colorPairs.back().second);
         }
-        //  Mark current pair (in the unorderedList) as pushed into the orderedPairsList
+        
+        // Mark current pair (in the unorderedList) as pushed into the orderedPairsList
         unorderedColorPairs[minDifferenceIdx].first.r = -1;
-        //  Move currentRow, currentCol to path's other end
+        
+        // Move currentRow, currentCol to path's other end
         currentRow = colorPairs.back().second.r;
         currentCol = colorPairs.back().second.c;
     }
 }
+
 void FlowSolver::printMaze() {
     for (int i = 0; i < gridRowsCount; ++i) {
         for (int j = 0; j < gridColsCount; ++j) {
@@ -193,51 +198,61 @@ void FlowSolver::printMaze() {
 }
 
 string FlowSolver::getSolutionPaths() {
-    //printMaze();
-    // cout << gridRowsCount << "x" << gridColsCount << endl;
-    // cout << "Block Width: " << singleBlockWidth << ", Block Height: " << singleBlockHeight << endl;
-    // cout << "Recursive calls count: " << recursiveCalls << endl;
-    // Assume: pen starts @ ( 0 , 0 )
-    int currentRow = 0, currentCol = 0;
     string result = "";
+    
+    // Print statistics
+    printMaze();
+    cout << gridRowsCount << "x" << gridColsCount << endl;
+    cout << "Block Width: " << singleBlockWidth << ", Block Height: " << singleBlockHeight << endl;
+    cout << "Recursive calls count: " << recursiveCalls << endl;
+    
+    // Assume: pen starts at (0, 0)
+    int currentRow = 0, currentCol = 0;
+    
     for (int i = 0; i < colorPathes.size(); i++) {
+        // Generate the path from the ending cell of the previous color pair to the starting
+        // cell of the current color pair
+        int targetRow = colorPairs[i].first.r;
+        int targetCol = colorPairs[i].first.c;
+        int diffStepsRows = targetRow - currentRow;
+        int diffStepsCols = targetCol - currentCol;
         
-        // ToDo: Navigate to path start point
-        int targetRow = colorPairs[i].first.r, targetCol = colorPairs[i].first.c;
-        int requiredRowsSteps = targetRow - currentRow, requiredColsSteps = targetCol - currentCol;
-        for (int k=0; k < abs(requiredRowsSteps); k++) {
-            cout << ((requiredRowsSteps<0) ? "^" : "v" );
+        for (int k = 0; k < abs(diffStepsRows); ++k) {
+            result += (diffStepsRows < 0 ? "^" : "v");
         }
-        for (int k=0; k < abs(requiredColsSteps); k++) {
-            cout << ((requiredColsSteps<0) ? "<" : ">" );
+        for (int k = 0; k < abs(diffStepsCols); ++k) {
+            result += (diffStepsCols < 0 ? "<" : ">");
         }
         
-        result+="P";// << colorPathes[i].size() << "-";
+        // Press instruction
+        result += "P";
         
         for (int j = 0; j < colorPathes[i].size(); ++j) {
             switch (colorPathes[i][j])
             {
                 case DOWN:
-                    result+= "v";
+                    result += "v";
                     break;
                 case UP:
-                    result+= "^";
+                    result += "^";
                     break;
                 case RIGTH:
-                    result+= ">";
+                    result += ">";
                     break;
                 case LEFT:
-                    result+= "<";
+                    result += "<";
                     break;
             }
         }
-        result+= "R";
         
-        // Set current pen point on the grid (preparing for the next path)
+        // Release instruction
+        result += "R";
+        
+        // Set current pen point on the grid (preparing for the next color pair)
         currentRow = colorPairs[i].second.r;
         currentCol = colorPairs[i].second.c;
-        
     }
+    
     return result;
 }
 
